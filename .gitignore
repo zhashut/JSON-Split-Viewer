@@ -1,0 +1,28 @@
+# 编辑器和 IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.log
+*.tmp
+
+# 打包文件
+*.zip
+*.crx
+*.pem
+
+# Node.js（如果后续使用）
+node_modules/
+package-lock.json
+yarn.lock
+
+# 测试文件
+test/
+*.test.js

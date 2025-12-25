@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON 树状视图与层级复制 (Pro)</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --panel-bg: #f8f9fa;
+            --text-color: #24292e;
+            --key-color: #881391; /* 紫色 Key */
+            --string-color: #c41a16; /* 红色 String */
+            --number-color: #1c00cf; /* 蓝色 Number */
+            --bool-color: #0d22aa;
+            --null-color: #808080;
+            --border-color: #e1e4e8;
+            --hover-bg: #f1f8ff;
+            --guide-line: #e0e0e0;
+            --btn-primary: #0366d6;
+        }
+
+        /* 暗色模式支持（可选，这里默认亮色以匹配常见的图2风格） */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1e1e1e;
+                --panel-bg: #252526;
+                --text-color: #d4d4d4;
+                --key-color: #9cdcfe;
+                --string-color: #ce9178;
+                --number-color: #b5cea8;
+                --bool-color: #569cd6;
+                --null-color: #569cd6;
+                --border-color: #3e3e42;
+                --hover-bg: #2a2d2e;
+                --guide-line: #404040;
+            }
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Menlo', 'Monaco', 'Courier New', monospace; background: var(--bg-color); color: var(--text-color); overflow: hidden; }
+
+        /* 布局 */
+        .app-layout { display: flex; flex-direction: column; height: 100%; }
+        .toolbar { height: 48px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; padding: 0 16px; justify-content: space-between; background: var(--panel-bg); }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        .pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .pane-left { border-right: 1px solid var(--border-color); width: 40%; max-width: 40%; }
+        
+        /* 输入区 */
+        textarea { flex: 1; border: none; resize: none; padding: 16px; background: var(--bg-color); color: var(--text-color); font-family: inherit; font-size: 13px; outline: none; line-height: 1.5; }
+        
+        /* 输出区 */
+        .json-viewer { padding: 16px; overflow-y: auto; font-size: 13px; line-height: 1.6; }
+
+        /* ---------------- JSON 树状核心样式 ---------------- */
+        
+        /* 每一行容器 */
+        .jv-node { 
+            position: relative; 
+            padding-left: 20px; /* 缩进 */
+            cursor: default;
+        }
+
+        /* 辅助线：利用伪元素画垂直虚线 */
+        .jv-node::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 8px; /* 线的位置 */
+            border-left: 1px dashed var(--guide-line);
+            z-index: 0;
+        }
+        /* 根节点不需要左侧辅助线 */
+        .json-viewer > .jv-node { padding-left: 0; }
+        .json-viewer > .jv-node::before { display: none; }
+
+        /* 行内容包装 */
+        .jv-line { 
+            display: flex; 
+            align-items: center; 
+            padding: 2px 4px;
+            border-radius: 3px;
+            position: relative; /* 为了定位复制按钮 */
+        }
+        .jv-line:hover { background-color: var(--hover-bg); }
+
+        /* 折叠图标 */
+        .jv-toggle {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            text-align: center;
+            line-height: 16px;
+            cursor: pointer;
+            margin-right: 4px;
+            font-size: 10px;
+            color: #666;
+            transform: rotate(90deg); /* 默认展开向下 */
+            transition: transform 0.1s;
+            user-select: none;
+        }
+        .jv-toggle.collapsed { transform: rotate(0deg); /* 折叠向右 */ }
+        .jv-toggle.hidden { visibility: hidden; } /* 无子节点时不显示 */
+
+        /* 语法高亮 */
+        .jv-key { color: var(--key-color); margin-right: 4px; }
+        .jv-string { color: var(--string-color); }
+        .jv-number { color: var(--number-color); }
+        .jv-bool { color: var(--bool-color); font-weight: bold; }
+        .jv-null { color: var(--null-color); font-weight: bold; }
+        .jv-pun { color: var(--text-color); } /* 标点符号 */
+        
+        /* 复杂对象的子容器 */
+        .jv-children { display: block; }
+        .jv-children.hidden { display: none; }
+        
+        /* 省略号 */
+        .jv-ellipsis { 
+            display: none; 
+            color: #999; 
+            background: #eee; 
+            padding: 0 4px; 
+            border-radius: 2px; 
+            font-size: 12px; 
+            margin-left: 5px;
+            cursor: pointer;
+        }
+        .jv-children.hidden + .jv-ellipsis { display: inline-block; }
+
+        /* ---------------- 悬浮操作栏 ---------------- */
+        .action-menu {
+            display: none;
+            position: absolute;
+            right: 10px;
+            background: #333;
+            color: #fff;
+            border-radius: 4px;
+            padding: 2px;
+            font-size: 11px;
+            z-index: 10;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .jv-line:hover .action-menu { display: flex; }
+        
+        .action-btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            padding: 2px 8px;
+            cursor: pointer;
+            border-right: 1px solid #555;
+        }
+        .action-btn:last-child { border-right: none; }
+        .action-btn:hover { background: #555; }
+
+        /* 按钮样式 */
+        .btn { padding: 6px 12px; background: var(--btn-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-outline { background: transparent; border: 1px solid #ccc; color: var(--text-color); margin-right: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="app-layout">
+    <div class="toolbar">
+        <div style="font-weight:bold;">JSON Split Viewer</div>
+        <div>
+            <button class="btn btn-outline" onclick="loadDemo()">加载示例</button>
+            <button class="btn btn-outline" onclick="toggleAll(false)">全部折叠</button>
+            <button class="btn" onclick="formatInput()">格式化</button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <!-- 左侧输入 -->
+        <div class="pane pane-left">
+            <textarea id="jsonInput" placeholder="在此粘贴 JSON 数据..."></textarea>
+        </div>
+        
+        <!-- 右侧树状图 -->
+        <div class="pane pane-right">
+            <div id="jsonViewer" class="json-viewer"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------------- 核心逻辑 ----------------
+
+    function formatInput() {
+        const input = document.getElementById('jsonInput').value;
+        const viewer = document.getElementById('jsonViewer');
+        viewer.innerHTML = ''; // 清空
+
+        if (!input.trim()) return;
+
+        try {
+            const data = JSON.parse(input);
+            // 从根节点开始递归渲染
+            const tree = renderNode(null, data, true); // root key is null
+            viewer.appendChild(tree);
+        } catch (e) {
+            viewer.innerHTML = `<div style="color:red; padding:10px;">JSON 解析错误: ${e.message}</div>`;
+        }
+    }
+
+    /**
+     * 递归渲染节点
+     * @param {string|null} key - 当前节点的键名 (如果是数组项则可能是索引或空)
+     * @param {any} value - 当前节点的值
+     * @param {boolean} isLast - 是否是当前层级的最后一项 (用于控制逗号)
+     */
+    function renderNode(key, value, isLast = true) {
+        const type = getType(value);
+        const isComplex = type === 'object' || type === 'array';
+        
+        // 创建节点容器
+        const nodeDiv = document.createElement('div');
+        nodeDiv.className = 'jv-node';
+
+        // 1. 构建当前行的内容
+        const lineDiv = document.createElement('div');
+        lineDiv.className = 'jv-line';
+
+        // 折叠图标
+        const toggleSpan = document.createElement('span');
+        toggleSpan.className = 'jv-toggle' + (isComplex ? '' : ' hidden');
+        toggleSpan.innerText = '▶'; // 默认状态图标
+        lineDiv.appendChild(toggleSpan);
+
+        // 键名 (Key)
+        if (key !== null) {
+            const keySpan = document.createElement('span');
+            keySpan.className = 'jv-key';
+            keySpan.innerText = `"${key}":`;
+            lineDiv.appendChild(keySpan);
+        }
+
+        // 值 (Value) 或 开始括号
+        if (isComplex) {
+            const openBracket = document.createElement('span');
+            openBracket.className = 'jv-pun';
+            openBracket.innerText = type === 'array' ? '[' : '{';
+            lineDiv.appendChild(openBracket);
+
+            // 省略号 (折叠时显示)
+            const ellipsis = document.createElement('span');
+            ellipsis.className = 'jv-ellipsis';
+            ellipsis.innerText = `... ${type === 'array' ? value.length + ' items' : Object.keys(value).length + ' keys'} ...`;
+            
+            // 点击省略号也可以展开
+            ellipsis.onclick = (e) => {
+                e.stopPropagation();
+                toggleNode(nodeDiv);
+            };
+            
+            // 稍后将 ellipsis 插入到 children 之后，这里先占位引用
+            // (HTML结构顺序要求：Children 隐藏时，Ellipsis 显示)
+            
+            // 2. 构建子节点容器
+            const childrenDiv = document.createElement('div');
+            childrenDiv.className = 'jv-children';
+            
+            // 递归处理子元素
+            const keys = Object.keys(value);
+            keys.forEach((k, index) => {
+                const isLastChild = index === keys.length - 1;
+                const childNode = renderNode(type === 'array' ? null : k, value[k], isLastChild);
+                childrenDiv.appendChild(childNode);
+            });
+
+            // 3. 闭合括号
+            const closeDiv = document.createElement('div');
+            closeDiv.className = 'jv-node'; 
+            // 闭合括号单独一行，保持缩进
+            closeDiv.innerHTML = `<div class="jv-line" style="padding-left:24px"><span class="jv-pun">${type === 'array' ? ']' : '}'}${isLast ? '' : ','}</span></div>`;
+
+            // 组装复杂对象
+            nodeDiv.appendChild(lineDiv);
+            nodeDiv.appendChild(childrenDiv);
+            nodeDiv.appendChild(ellipsis); // 插入省略号
+            nodeDiv.appendChild(closeDiv);
+
+            // 绑定折叠事件
+            const toggleAction = () => toggleNode(nodeDiv);
+            toggleSpan.onclick = toggleAction;
+            // 双击 Key 也可以折叠
+            lineDiv.ondblclick = (e) => {
+                e.stopPropagation();
+                toggleAction();
+            };
+
+        } else {
+            // 基本数据类型
+            const valSpan = document.createElement('span');
+            valSpan.className = `jv-${type}`;
+            if (type === 'string') valSpan.innerText = `"${value}"`;
+            else valSpan.innerText = value + '';
+            lineDiv.appendChild(valSpan);
+
+            // 逗号
+            if (!isLast) {
+                const comma = document.createElement('span');
+                comma.className = 'jv-pun';
+                comma.innerText = ',';
+                lineDiv.appendChild(comma);
+            }
+            
+            nodeDiv.appendChild(lineDiv);
+        }
+
+        // 4. 添加复制菜单 (悬浮显示)
+        const menu = document.createElement('div');
+        menu.className = 'action-menu';
+        
+        // 复制 Key
+        if (key) {
+            const btnKey = createActionBtn('复制 Key', () => copyText(key));
+            menu.appendChild(btnKey);
+        }
+        
+        // 复制 Value
+        const btnVal = createActionBtn('复制 Value', () => {
+            // 如果是对象，复制整个对象的 JSON 字符串
+            const text = isComplex ? JSON.stringify(value, null, 2) : value;
+            copyText(text);
+        });
+        menu.appendChild(btnVal);
+
+        lineDiv.appendChild(menu);
+
+        return nodeDiv;
+    }
+
+    function createActionBtn(text, onClick) {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.innerText = text;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            onClick();
+        };
+        return btn;
+    }
+
+    function getType(val) {
+        if (val === null) return 'null';
+        if (Array.isArray(val)) return 'array';
+        return typeof val;
+    }
+
+    function toggleNode(nodeDiv) {
+        const children = nodeDiv.querySelector('.jv-children');
+        const toggleBtn = nodeDiv.querySelector('.jv-toggle');
+        const closeDiv = nodeDiv.lastChild; // 闭合括号的 div
+        
+        if (!children) return;
+
+        if (children.classList.contains('hidden')) {
+            // 展开
+            children.classList.remove('hidden');
+            toggleBtn.classList.remove('collapsed');
+            closeDiv.style.display = 'block';
+        } else {
+            // 折叠
+            children.classList.add('hidden');
+            toggleBtn.classList.add('collapsed');
+            closeDiv.style.display = 'none';
+        }
+    }
+
+    // 全部折叠/展开 (简单实现：遍历 DOM)
+    function toggleAll(expand) {
+        const allChildren = document.querySelectorAll('.jv-children');
+        const allToggles = document.querySelectorAll('.jv-toggle');
+        const allCloseDivs = document.querySelectorAll('.jv-node > .jv-node'); // 粗略选取闭合括号行
+
+        allChildren.forEach(el => expand ? el.classList.remove('hidden') : el.classList.add('hidden'));
+        allToggles.forEach(el => expand ? el.classList.remove('collapsed') : el.classList.add('collapsed'));
+        // 重新触发一次格式化最简单，或者手动控制 display
+        if(!expand) formatInput(); // 偷懒做法：重置并折叠（需改进逻辑默认折叠）
+        // 更好的做法是在 render 时传入 defaultOpen 参数
+    }
+
+    async function copyText(text) {
+        try {
+            await navigator.clipboard.writeText(String(text));
+            // 简单的 Toast 提示
+            const toast = document.createElement('div');
+            toast.innerText = '已复制!';
+            toast.style.cssText = 'position:fixed; top:20px; left:50%; background:rgba(0,0,0,0.7); color:#fff; padding:5px 10px; border-radius:4px; transform:translateX(-50%);';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 1000);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function loadDemo() {
+        const demo = {
+            "project": "ChromePlugin",
+            "version": 1.0,
+            "features": ["split-view", "copy-level", "tree-render"],
+            "author": { 
+                "name": "Dev", 
+                "contact": { "email": "test@test.com", "github": "@user" }
+            },
+            "config": {
+                "theme": "dark",
+                "autoSave": true
+            }
+        };
+        document.getElementById('jsonInput').value = JSON.stringify(demo);
+        formatInput();
+    }
+    
+    // 初始化
+    loadDemo();
+</script>
+</body>
+</html>
