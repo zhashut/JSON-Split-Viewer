@@ -8,11 +8,12 @@ const JSONParser = {
     
     /**
      * 解析并渲染 JSON 数据（带性能优化）
+     * @returns {boolean} 解析是否成功
      */
     parse(jsonString, container, options = {}) {
         container.innerHTML = '';
 
-        if (!jsonString.trim()) return;
+        if (!jsonString.trim()) return false;
 
         // 显示加载动画（大数据时）
         const size = new Blob([jsonString]).size;
@@ -32,8 +33,10 @@ const JSONParser = {
             } else {
                 this.renderTree(data, container);
             }
+            return true;
         } catch (e) {
             container.innerHTML = `<div style="color:red; padding:10px;">JSON 解析错误: ${e.message}</div>`;
+            return false;
         }
     },
 
@@ -51,6 +54,48 @@ const JSONParser = {
      */
     showLoading(container) {
         container.innerHTML = '<div style="padding:20px; text-align:center;"><div class="loading"></div><div style="margin-top:10px;">解析中...</div></div>';
+    },
+
+    /**
+     * 将文本中匹配的关键词高亮
+     */
+    highlightText(text, isQuoted = false) {
+        if (!this.searchKeyword || !text) {
+            return isQuoted ? `"${text}"` : String(text);
+        }
+
+        const str = String(text);
+        const keyword = this.searchKeyword;
+        const lowerStr = str.toLowerCase();
+        const lowerKeyword = keyword.toLowerCase();
+        
+        if (!lowerStr.includes(lowerKeyword)) {
+            return isQuoted ? `"${str}"` : str;
+        }
+
+        // 查找所有匹配位置
+        const parts = [];
+        let lastIndex = 0;
+        let index = lowerStr.indexOf(lowerKeyword);
+        
+        while (index !== -1) {
+            // 添加匹配前的文本
+            if (index > lastIndex) {
+                parts.push(str.substring(lastIndex, index));
+            }
+            // 添加高亮的匹配文本
+            parts.push(`<mark class="search-highlight">${str.substring(index, index + keyword.length)}</mark>`);
+            lastIndex = index + keyword.length;
+            index = lowerStr.indexOf(lowerKeyword, lastIndex);
+        }
+        
+        // 添加剩余文本
+        if (lastIndex < str.length) {
+            parts.push(str.substring(lastIndex));
+        }
+        
+        const result = parts.join('');
+        return isQuoted ? `"${result}"` : result;
     },
 
     /**
@@ -76,13 +121,7 @@ const JSONParser = {
         if (key !== null) {
             const keySpan = document.createElement('span');
             keySpan.className = 'jv-key';
-            keySpan.innerText = `"${key}":`;
-            
-            // 搜索高亮
-            if (this.searchKeyword && this.matchSearch(key)) {
-                keySpan.classList.add('search-highlight');
-            }
-            
+            keySpan.innerHTML = this.highlightText(key, true) + ':';
             lineDiv.appendChild(keySpan);
         }
 
@@ -137,12 +176,11 @@ const JSONParser = {
             // 基本数据类型
             const valSpan = document.createElement('span');
             valSpan.className = `jv-${type}`;
-            if (type === 'string') valSpan.innerText = `"${value}"`;
-            else valSpan.innerText = value + '';
             
-            // 搜索高亮
-            if (this.searchKeyword && this.matchSearch(value)) {
-                valSpan.classList.add('search-highlight');
+            if (type === 'string') {
+                valSpan.innerHTML = this.highlightText(value, true);
+            } else {
+                valSpan.innerHTML = this.highlightText(value, false);
             }
             
             lineDiv.appendChild(valSpan);

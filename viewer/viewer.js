@@ -28,9 +28,10 @@ function debounce(func, wait) {
 // 格式化按钮
 formatBtn.addEventListener('click', async () => {
     const input = jsonInput.value;
-    JSONParser.parse(input, jsonViewer);
+    const success = JSONParser.parse(input, jsonViewer);
     
-    if (input.trim()) {
+    // 只在解析成功时保存到历史记录
+    if (success && input.trim()) {
         await HistoryManager.save(input);
         await loadHistoryList();
     }
@@ -96,10 +97,15 @@ searchInput.addEventListener('keydown', (e) => {
 
 // 搜索输入框实时搜索（防抖）
 const debouncedSearch = debounce(() => {
-    if (searchInput.value.trim()) {
+    const keyword = searchInput.value.trim();
+    if (keyword) {
         performSearch();
+    } else {
+        // 输入为空时自动清除搜索
+        searchResult.textContent = '';
+        JSONParser.clearSearch();
     }
-}, 500);
+}, 100);
 
 searchInput.addEventListener('input', debouncedSearch);
 
@@ -111,10 +117,10 @@ const debouncedFormat = debounce(async () => {
         return;
     }
     
-    JSONParser.parse(input, jsonViewer);
+    const success = JSONParser.parse(input, jsonViewer);
     
-    // 自动保存到历史记录
-    if (input) {
+    // 只在解析成功时保存到历史记录
+    if (success && input) {
         await HistoryManager.save(input);
         await loadHistoryList();
     }

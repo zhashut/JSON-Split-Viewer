@@ -109,17 +109,17 @@ body, html {
     background: var(--hover-bg);
 }
 
-.search-highlight {
-    background-color: #ffeb3b !important;
-    color: #000 !important;
-    padding: 2px 4px;
+mark.search-highlight {
+    background-color: #ffeb3b;
+    color: #000;
     border-radius: 2px;
+    font-weight: 500;
 }
 
 @media (prefers-color-scheme: dark) {
-    .search-highlight {
-        background-color: #ffa726 !important;
-        color: #000 !important;
+    mark.search-highlight {
+        background-color: #ffa726;
+        color: #000;
     }
 }
 
