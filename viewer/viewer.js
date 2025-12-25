@@ -219,5 +219,4 @@ jsonInput.addEventListener('keydown', (e) => {
 // 初始化
 window.addEventListener('DOMContentLoaded', async () => {
     await loadHistoryList();
-    loadDemoBtn.click();
 });
