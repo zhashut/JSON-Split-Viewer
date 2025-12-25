@@ -13,7 +13,6 @@
     --btn-primary: #0366d6;
 }
 
-/* 暗色模式支持 */
 @media (prefers-color-scheme: dark) {
     :root {
         --bg-color: #1e1e1e;
@@ -41,7 +40,6 @@ body, html {
     overflow: hidden;
 }
 
-/* 布局 */
 .app-layout {
     display: flex;
     flex-direction: column;
@@ -64,7 +62,6 @@ body, html {
     gap: 8px;
 }
 
-/* 搜索栏 */
 .search-bar {
     height: 40px;
     border-bottom: 1px solid var(--border-color);
@@ -96,7 +93,6 @@ body, html {
     margin-left: 8px;
 }
 
-/* 历史记录下拉框 */
 .history-select {
     padding: 6px 12px;
     border: 1px solid var(--border-color);
@@ -113,7 +109,6 @@ body, html {
     background: var(--hover-bg);
 }
 
-/* 搜索高亮 */
 .search-highlight {
     background-color: #ffeb3b !important;
     color: #000 !important;
@@ -148,7 +143,6 @@ body, html {
     max-width: 40%;
 }
 
-/* 输入区 */
 textarea {
     flex: 1;
     border: none;
@@ -162,7 +156,6 @@ textarea {
     line-height: 1.5;
 }
 
-/* 输出区 */
 .json-viewer {
     padding: 16px;
     overflow-y: auto;
@@ -170,16 +163,12 @@ textarea {
     line-height: 1.6;
 }
 
-/* JSON 树状核心样式 */
-
-/* 每一行容器 */
 .jv-node {
     position: relative;
     padding-left: 20px;
     cursor: default;
 }
 
-/* 辅助线 */
 .jv-node::before {
     content: '';
     position: absolute;
@@ -190,7 +179,6 @@ textarea {
     z-index: 0;
 }
 
-/* 根节点不需要左侧辅助线 */
 .json-viewer > .jv-node {
     padding-left: 0;
 }
@@ -199,7 +187,6 @@ textarea {
     display: none;
 }
 
-/* 行内容包装 */
 .jv-line {
     display: flex;
     align-items: center;
@@ -212,7 +199,6 @@ textarea {
     background-color: var(--hover-bg);
 }
 
-/* 折叠图标 */
 .jv-toggle {
     display: inline-block;
     width: 16px;
@@ -236,7 +222,6 @@ textarea {
     visibility: hidden;
 }
 
-/* 语法高亮 */
 .jv-key {
     color: var(--key-color);
     margin-right: 4px;
@@ -264,7 +249,6 @@ textarea {
     color: var(--text-color);
 }
 
-/* 复杂对象的子容器 */
 .jv-children {
     display: block;
 }
@@ -273,7 +257,6 @@ textarea {
     display: none;
 }
 
-/* 省略号 */
 .jv-ellipsis {
     display: none;
     color: #999;
@@ -289,7 +272,6 @@ textarea {
     display: inline-block;
 }
 
-/* 悬浮操作栏 */
 .action-menu {
     display: none;
     position: absolute;
@@ -324,7 +306,6 @@ textarea {
     background: #555;
 }
 
-/* 按钮样式 */
 .btn {
     padding: 6px 12px;
     background: var(--btn-primary);
@@ -355,7 +336,6 @@ textarea {
     font-size: 12px;
 }
 
-/* 加载动画 */
 .loading {
     display: inline-block;
     width: 16px;
